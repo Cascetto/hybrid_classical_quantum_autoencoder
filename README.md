@@ -1,8 +1,3 @@
-# Hybrid Classical Quantum AutoEncoder
-Implementation of the HAE used for anomaly detection. 
-The model can be though as a pipeline consisting of:
-+ a classical Endoer
-+ a Variational Quantum Circuit
-+ a classical Decoder
-
-After the model training, we can perform anomaly detection using the output of the VQC as the input of an Isolation Forest
+version https://git-lfs.github.com/spec/v1
+oid sha256:4f4aad95541f4aacadb2b3f8b01fb1719f6523416d9f8acfe7a4d3b353aba4bd
+size 346
