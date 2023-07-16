@@ -1,7 +1,7 @@
 import pennylane as qml
 import torch.nn as nn
 import torch
-
+import matplotlib.pyplot as plt
 qubits = 2
 dev = qml.device('default.qubit', qubits)
 
@@ -110,38 +110,53 @@ class PennyHAE(nn.Module):
 n_qubits = 2
 n_layers = 2
 dev = qml.device("default.qubit", wires=n_qubits)
-weight_shapes = {"weights": (n_layers, n_qubits)}
+weight_shapes = {"weights": (n_layers, n_qubits, 2)}
 
 
 @qml.qnode(dev)
 def qnode(inputs, weights):
-    qml.AngleEmbedding(inputs, wires=range(n_qubits))
-    qml.BasicEntanglerLayers(weights, wires=range(n_qubits))
+    # nqubits 2
+
+    # qml.AngleEmbedding(inputs, wires=range(n_qubits))
+    # qml.BasicEntanglerLayers(weights, wires=range(n_qubits))
+
+    # ry rotations
+    qml.AngleEmbedding(weights[0, :, 0], rotation='Y', wires=range(n_qubits))
+    qml.AngleEmbedding(weights[0, :, 1], rotation='X', wires=range(n_qubits))
+    qml.CNOT((n_qubits - 1, 0))
+    for i in range(n_qubits - 1):
+        qml.CNOT((i, i + 1))
+    for r in range(1, weights.shape[0]):
+        qml.AngleEmbedding(inputs, wires=range(n_qubits), id="Enconding Layer")
+        qml.AngleEmbedding(
+            weights[r, :, 0], rotation='Y', wires=range(n_qubits))
+        qml.AngleEmbedding(
+            weights[r, :, 1], rotation='X', wires=range(n_qubits))
+        qml.CNOT((n_qubits - 1, 0))
+        for i in range(n_qubits - 1):
+            qml.CNOT((i, i + 1))
     return [qml.expval(qml.PauliZ(wires=i)) for i in range(n_qubits)]
 
 
 class HybridModel(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, input_dim):
         super().__init__()
-        self.clayer_1 = torch.nn.Linear(2, 4)
+        self.clayer_1 = torch.nn.Linear(input_dim, n_qubits)
         self.qlayer_1 = qml.qnn.TorchLayer(qnode, weight_shapes)
-        self.qlayer_2 = qml.qnn.TorchLayer(qnode, weight_shapes)
-        self.clayer_2 = torch.nn.Linear(4, 2)
+        self.clayer_2 = torch.nn.Linear(n_qubits, input_dim)
         self.softmax = torch.nn.Softmax(dim=1)
 
     def forward(self, x):
         x = self.clayer_1(x)
-        x_1, x_2 = torch.split(x, 2, dim=1)
-        x_1 = self.qlayer_1(x_1)
-        x_2 = self.qlayer_2(x_2)
-        x = torch.cat([x_1, x_2], axis=1)
+        x = self.qlayer_1(x)
         x = self.clayer_2(x)
         return self.softmax(x)
 
 
 if __name__ == '__main__':
-
-    model = HybridModel()
+    model = HybridModel(2)
     x = torch.rand((4, 2))
+    fig = qml.draw_mpl(qnode)(x[0, :], torch.rand(2, 2, 2))
+    plt.show()
     y = model(x)
     print(y)
